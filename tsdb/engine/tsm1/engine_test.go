@@ -822,6 +822,7 @@ func benchmarkEngine_WritePoints_Parallel(b *testing.B, batchSize int) {
 		b.StartTimer()
 
 		var wg sync.WaitGroup
+		errC := make(chan error, cpus)
 		for i := 0; i < cpus; i++ {
 			wg.Add(1)
 			go func(i int) {
@@ -829,11 +830,19 @@ func benchmarkEngine_WritePoints_Parallel(b *testing.B, batchSize int) {
 				from, to := i*batchSize, (i+1)*batchSize
 				err := e.WritePoints(pp[from:to])
 				if err != nil {
-					b.Fatal(err)
+					errC <- err
+					return
 				}
 			}(i)
 		}
 		wg.Wait()
+
+		close(errC)
+		for err := range errC {
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
 	}
 }
 
